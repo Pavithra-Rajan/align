@@ -1,0 +1,6 @@
+**/.env
+**/*.json
+**/.log
+**/venv/
+**.pyc
+__pycache__/
