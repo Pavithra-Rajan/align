@@ -61,12 +61,17 @@ def setup_and_upload():
         skills = job.get('ai_key_skills', [])
         if skills:
             skills = skills[:10]    # for bedrock
+
+        location = job.get('locations_derived', 'Remote')
+        url = job.get('url', 'https://www.linkedin.com/jobs/view/')  # in case url is missing, provide a default one to avoid None values in metadata
         metadata = {
             "metadataAttributes": {
                 "seniority": job.get('seniority', 'Entry-level'),
                 "industry": job.get('linkedin_org_industry', 'General'),
                 "title": job.get('title', 'Unknown Role'), 
-                "skills": skills
+                "skills": skills,
+                "location": location,
+                "url": url
             }
         }
         
