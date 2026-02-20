@@ -1,0 +1,82 @@
+---
+config:
+  layout: elk
+---
+flowchart LR
+ subgraph Frontend_Layer["Frontend Layer (React)"]
+        Browse["Job Search & Browse"]
+        Upload["Resume Upload"]
+        UI["Career Portal UI"]
+  end
+ subgraph API_Gateway_Layer["API Gateway (Public Entry Points)"]
+        AGW_Search["GET /search"]
+        AGW_Jobs["GET /jobs"]
+        AGW_Results["GET /fetch-results"]
+        AGW_Request["GET /upload"]
+  end
+ subgraph Logic_Layer["Compute Layer (AWS Lambda)"]
+        L_Search["Search Query Lambda"]
+        L_Jobs["Job Metadata Lambda"]
+        L_Results["Results Poller Lambda"]
+        L_Extract["Resume Processing Lambda"]
+        L_Upload["Upload Signer Lambda"]
+  end
+ subgraph Storage_Layer["Data Stores"]
+        AOSS["OpenSearch Serverless (Job & Resume Vectors)"]
+        DDB["DynamoDB (Match Results)"]
+        S3_Bucket["Amazon S3 (Resumes)"]
+  end
+ subgraph AI_Services["AI Services"]
+        Claude["Claude 3.5 Sonnet"]
+        KB["Bedrock Knowledge Base"]
+        Textract["Amazon Textract"]
+  end
+ subgraph Ops_Layer["Operations & Security"]
+        Secrets["AWS Secrets Manager"]
+        CW["Amazon CloudWatch"]
+  end
+    UI --> AGW_Request & AGW_Results & AGW_Jobs
+    AGW_Request --> L_Upload
+    L_Upload -- Presigned URL --> UI
+    UI -- Direct Upload --> S3_Bucket
+    S3_Bucket -- Object Created Event --> L_Extract
+    L_Extract --> Textract & KB & Claude
+    KB --> AOSS
+    Claude --> DDB
+    AGW_Results --> L_Results
+    L_Results --> DDB
+    AGW_Jobs --> L_Jobs
+    L_Jobs --> AOSS
+    Browse --> AGW_Search
+    AGW_Search --> L_Search
+    L_Search --> AOSS
+    L_Extract -.-> CW
+    L_Search -.-> CW
+    AGW_Request -.-> Secrets
+
+     UI:::frontend
+     Upload:::frontend
+     Browse:::frontend
+     AGW_Request:::api
+     AGW_Results:::api
+     AGW_Jobs:::api
+     AGW_Search:::api
+     L_Upload:::lambda
+     L_Extract:::lambda
+     L_Results:::lambda
+     L_Jobs:::lambda
+     L_Search:::lambda
+     S3_Bucket:::storage
+     DDB:::storage
+     AOSS:::storage
+     Textract:::ai
+     KB:::ai
+     Claude:::ai
+     CW:::ops
+     Secrets:::ops
+    classDef frontend fill:#E3F2FD,stroke:#1E88E5,stroke-width:2px,color:#0D47A1
+    classDef api fill:#E8F5E9,stroke:#2E7D32,stroke-width:2px,color:#1B5E20
+    classDef lambda fill:#F3E5F5,stroke:#6A1B9A,stroke-width:2px,color:#4A148C
+    classDef storage fill:#FFF3E0,stroke:#EF6C00,stroke-width:2px,color:#E65100
+    classDef ai fill:#E0F7FA,stroke:#00838F,stroke-width:2px,color:#004D40
+    classDef ops fill:#ECEFF1,stroke:#455A64,stroke-width:2px,color:#263238
