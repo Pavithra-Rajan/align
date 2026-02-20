@@ -61,7 +61,7 @@ const JobGallery = () => {
 
       {filtered.length === 0 ? (
         <p className="text-center text-muted-foreground py-12 text-sm">
-          No jobs match "{searchQuery}". Try a different search.
+          Loading jobs...
         </p>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
