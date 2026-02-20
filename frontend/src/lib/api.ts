@@ -104,3 +104,54 @@ export async function getMatchResults(fileName: string): Promise<import('./types
     throw error;
   }
 }
+
+/**
+ * Searches for jobs based on search term and seniority level.
+ */
+export async function searchJobs(
+  searchTerm: string,
+  seniorityLevel: string,
+  page: number = 1
+): Promise<{ jobs: Job[]; hasMore: boolean }> {
+  try {
+    // Build URL with only non-empty parameters
+    const params = new URLSearchParams();
+    if (searchTerm.trim()) {
+      params.append("q", searchTerm);
+    }
+    if (seniorityLevel.trim()) {
+      params.append("seniority", seniorityLevel);
+    }
+    params.append("page", page.toString());
+    
+    const url = `https://e2u8nwnymd.execute-api.us-east-1.amazonaws.com/prod/search?${params.toString()}`;
+    const response = await fetch(url);
+    
+    if (!response.ok) {
+      throw new Error(`API error: ${response.status}`);
+    }
+    
+    const data = await response.json();
+    console.log("Search API Response:", data);
+    
+    // API returns array directly
+    if (Array.isArray(data) && data.length > 0) {
+      return {
+        jobs: data,
+        hasMore: true,
+      };
+    }
+    
+    // Empty array means no results
+    return {
+      jobs: [],
+      hasMore: false,
+    };
+  } catch (error) {
+    console.error("Failed to search jobs:", error);
+    return {
+      jobs: [],
+      hasMore: false,
+    };
+  }
+}
