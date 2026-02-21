@@ -3,7 +3,6 @@ import json
 import requests
 from requests_aws4auth import AWS4Auth
 
-# --- CONFIGURATION ---
 region = 'us-east-1'
 service = 'aoss'
 credentials = boto3.Session().get_credentials()
@@ -49,7 +48,7 @@ def lambda_handler(event, context):
     else:
         query_dsl["query"]["bool"]["must"].append({"match_all": {}})
 
-    # Handle Seniority Filter (Exact match)
+    # Handle Seniority Filter 
     if seniority and seniority.lower() != 'all':
         query_dsl["query"]["bool"]["filter"].append({
             "match_phrase": { "seniority": seniority }
@@ -67,7 +66,7 @@ def lambda_handler(event, context):
         for hit in results.get('hits', {}).get('hits', []):
             # Flatten the source so frontend gets a clean object
             job_data = hit['_source']
-            job_data['id'] = hit['_id'] # Including ID for React keys
+            job_data['id'] = hit['_id'] # Include ID for React keys
             jobs.append(job_data)
         print(len(jobs))
 
