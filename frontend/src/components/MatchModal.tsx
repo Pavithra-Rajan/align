@@ -28,7 +28,7 @@ const MatchModal = ({ matches, onClose }: MatchModalProps) => {
         <div className="space-y-4">
           {matches.map((match, index) => (
             <motion.div
-              key={`${match.company}-${match.title}`}
+              key={`${match.organization}-${match.title}`}
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: index * 0.1 }}
@@ -37,11 +37,14 @@ const MatchModal = ({ matches, onClose }: MatchModalProps) => {
               {/* Match Score Badge */}
               <div className="flex items-start justify-between mb-3">
                 <div className="flex-1">
-                  <h3 className="text-lg font-display font-bold text-foreground">
+                  <p className="text-lg font-display font-bold text-foreground mb-1">
+                    {match.organization}
+                  </p>
+                  <h3 className="text-base font-display  text-foreground mb-1">
                     {match.title}
                   </h3>
                   <p className="text-sm text-muted-foreground">
-                    {match.company} • {match.location}
+                    {match.location}
                   </p>
                 </div>
                 <div className="flex-shrink-0 ml-4">

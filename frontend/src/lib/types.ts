@@ -7,6 +7,7 @@ export interface Job {
   department: string;
   posted: string;
   url?: string;
+  organization: string;
 }
 
 export interface MatchResult {
@@ -17,7 +18,7 @@ export interface MatchResult {
 
 export interface AIMatch {
   title: string;
-  company: string;
+  organization: string;
   location: string;
   match_score: number;
   reason: string;

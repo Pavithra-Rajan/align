@@ -71,7 +71,8 @@ def setup_and_upload():
                 "title": job.get('title', 'Unknown Role'), 
                 "skills": skills,
                 "location": location,
-                "url": url
+                "url": url,
+                "organization": job.get('organization', 'Unknown Organization')
             }
         }
         

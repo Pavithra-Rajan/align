@@ -33,7 +33,10 @@ const JobCard = ({ job, index = 0 }: JobCardProps) => {
       </span>
 
       <p className="text-xs text-muted-foreground mb-1.5">{job.department}</p>
-      <h3 className="text-base font-display font-semibold text-foreground mb-2 pr-16 leading-snug">
+      <h2 className="text-lg font-display font-semibold text-foreground mb-1 pr-16 leading-snug">
+        {job.organization}
+      </h2>
+      <h3 className="text-base font-display text-foreground mb-2 pr-16 leading-snug">
         {job.title}
       </h3>
 
