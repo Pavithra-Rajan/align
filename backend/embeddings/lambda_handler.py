@@ -2,17 +2,16 @@ import json
 import boto3
 import time
 import logging
-
+from decimal import Decimal
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
 textract = boto3.client('textract')
 bedrock_agent_runtime = boto3.client('bedrock-agent-runtime')
 bedrock_runtime = boto3.client('bedrock-runtime')
-
 secrets_client = boto3.client('secretsmanager')
 
-def get_secrets(secret_name='align-config'):
+def get_secrets(secret_name='kb_id'):
     """Fetch secrets from AWS Secrets Manager"""
     try:
         response = secrets_client.get_secret_value(SecretId=secret_name)
@@ -31,32 +30,38 @@ try:
 except Exception as e:
     logger.warning(f"Could not load secrets, using fallback: {str(e)}")
 
-def get_personalized_match(resume_text, kb_id):
-    # Semantic Retrieval: Fetch the top 20 candidate jobs
+dynamodb = boto3.resource('dynamodb')
+table = dynamodb.Table('resumedetails')
+
+def get_raw_kb_results(resume_text, kb_id):
+    """Fetches the top 20 raw job matches from the Knowledge Base."""
+    search_query = resume_text[:1000] 
+    
     retrieval_response = bedrock_agent_runtime.retrieve(
         knowledgeBaseId=kb_id,
         retrievalConfiguration={
             'vectorSearchConfiguration': {
-                'numberOfResults': 20 
+                'numberOfResults': 10, 
+                'overrideSearchType': 'HYBRID'
             }
         },
-        retrievalQuery={'text': resume_text}
+        retrievalQuery={'text': search_query}
     )
     
-    # Format the retrieved jobs for the LLM
     candidate_jobs = []
+    print("Retrieved results from Knowledge Base:")
+    print(retrieval_response['retrievalResults'])
+
     for result in retrieval_response['retrievalResults']:
+        score = result.get('score', 0)
         candidate_jobs.append({
             "content": result['content']['text'],
-            "metadata": result.get('metadata', {})
+            "metadata": result.get('metadata', {}),
+            "score": result.get('score', 0) # The confidence score from the vector search
         })
-    print(f"Retrieved {len(candidate_jobs)} candidate jobs for LLM reasoning.")
-    print(f"Candidate Jobs Sample: {candidate_jobs[:2]}")  # Print first 2 for verification
-
-    # Using Claude to select and explain the match
-    # XML tags to clearly separate instructions and data for Claude
+    # print(candidate_jobs)
     prompt = f"""
-    You are an expert career advisor. I will provide a resume and a list of 20 potential jobs.
+    You are an expert career advisor. I will provide a resume and a list of 10 potential jobs.
     
     <resume>
     {resume_text}
@@ -70,32 +75,28 @@ def get_personalized_match(resume_text, kb_id):
     1. Identify the best matches based on seniority (e.g., don't match a VP to a Junior role) and industry.
     2. Provide a 'Match Score' (0-100).
     3. Explain in 2 sentences WHY this is a great match for the candidate and don't mention the candidate in the sentence, rather say it in second-person on why it fits the profile (you and your).
-    
-    Output your answer in JSON format.
+    4. the keys for the json should be title, organization, location, match_score, reason, link for the linkedin Link
+    Output your answer in JSON format. It should only return the JSON and no other additional data. Encase the response between ```json and ```.
     """
     
     response = bedrock_runtime.converse(
         modelId='anthropic.claude-3-5-sonnet-20240620-v1:0',
         messages=[{"role": "user", "content": [{"text": prompt}]}]
     )
-    print("Raw LLM Response:", response)  
-    
     return response['output']['message']['content'][0]['text']
 
 def lambda_handler(event, context):
     try:
-        # Get file details from S3 event
         bucket = event['Records'][0]['s3']['bucket']['name']
         key = event['Records'][0]['s3']['object']['key']
         
-        # Start Asynchronous Text Detection
+        # Start Textract
         response = textract.start_document_text_detection(
             DocumentLocation={'S3Object': {'Bucket': bucket, 'Name': key}}
         )
         job_id = response['JobId']
-        logger.info(f"Started Job ID: {job_id}")
-
-        # Wait for job to complete (Polling)
+        
+        # Polling for Textract completion
         status = 'IN_PROGRESS'
         while status == 'IN_PROGRESS':
             time.sleep(2)
@@ -103,29 +104,48 @@ def lambda_handler(event, context):
             status = job_status['JobStatus']
         
         if status == 'SUCCEEDED':
-            logger.info("Textract Analysis Complete")
-            # Extract text from the paginated results
-            pages = []
+            # Extract text from blocks
+            lines = []
             next_token = None
-            
             while True:
                 params = {'JobId': job_id}
-                if next_token:
-                    params['NextToken'] = next_token
+                if next_token: params['NextToken'] = next_token
                 
                 result = textract.get_document_text_detection(**params)
                 for item in result['Blocks']:
                     if item['BlockType'] == 'LINE':
-                        pages.append(item['Text'])
+                        lines.append(item['Text'])
                 
                 next_token = result.get('NextToken')
-                if not next_token:
-                    break
-            logger.info(f"Extracted Text: {pages}")
-            resume_text = "\n".join(pages) 
+                if not next_token: break
+            
+            resume_text = "\n".join(lines)
         
-            job_results = get_personalized_match(resume_text, kb_id)
-            print(f"Personalized Job Match Result: {job_results}")
+            # Get jobs directly from Knowledge Base (No LLM)
+            job_results = get_raw_kb_results(resume_text, kb_id)
+            # print(job_results)
+            print(type(job_results))
+            job_results = job_results.strip()
+            index = job_results.find("```json")
+            
+            job_results = job_results[index+7:]
+            job_results = job_results.replace('```', '')
+            job_results = json.loads(job_results)
+            
+            # print(job_results)
+            # print(type(job_results))
+
+            # Store in DynamoDB
+            table.put_item(
+                Item={
+                    'file_id': key,
+                    'status': 'COMPLETED',
+                    'matches': job_results, # This is now the list of objects from KB
+                    'timestamp': int(time.time()),
+                    'ttl': int(time.time() + 86400) 
+                }
+            )
+            
             return {
                 'statusCode': 200,
                 'body': json.dumps({'recommendations': job_results})
